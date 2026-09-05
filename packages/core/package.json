@@ -1,0 +1,18 @@
+{
+  "name": "@statpulse/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./models": "./src/models/index.js",
+    "./redis": "./src/redis/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ioredis": "^6.0.0",
+    "mongoose": "^9.10.0",
+    "zod": "^4.6.5"
+  }
+}

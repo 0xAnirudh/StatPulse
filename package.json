@@ -1,0 +1,33 @@
+{
+  "name": "statpulse",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A public status page that stays up when the service it reports on does not",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,jobs -c cyan,yellow \"npm:dev:api\" \"npm:dev:jobs\"",
+    "dev:api": "npm run dev --workspace=@statpulse/api",
+    "dev:jobs": "npm run dev --workspace=@statpulse/jobs",
+    "seed": "npm run seed --workspace=@statpulse/api",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "supertest": "^7.2.2",
+    "vitest": "^5.0.0"
+  }
+}

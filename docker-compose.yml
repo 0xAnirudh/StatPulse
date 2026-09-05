@@ -1,0 +1,57 @@
+# Local development stores.
+#
+# Mongo and Redis only. The API and the workers run on the host under
+# `npm run dev`, so a code change is a restart rather than a rebuild.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: statpulse-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: statpulse-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    # appendonly with appendfsync everysec, and deliberately no eviction
+    # policy.
+    #
+    # This one instance holds five different things: the status cache,
+    # the rate limit buckets, the refresh-token whitelist, the job
+    # queues, and the metrics buffer. The first two are disposable; the
+    # last three are not. Setting an LRU policy to protect the cache
+    # would let Redis quietly evict a refresh token or a queued job under
+    # memory pressure, which is a far worse failure than a cache miss.
+    #
+    # If memory ever becomes the binding constraint, the fix is to split
+    # the cache onto its own volatile instance - not to make this one
+    # lossy.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory-policy noeviction
+      --save 900 1
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:
+  redis-data:
