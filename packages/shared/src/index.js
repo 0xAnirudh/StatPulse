@@ -6,3 +6,7 @@ export {
   INCIDENT_IMPACT,
   ERROR_CLASS,
 } from './constants.js';
+
+export { worse, deriveFromComponents, deriveFromIncidents, deriveSystemStatus } from './status.js';
+
+export { uptimePercent, meanResponseMs, hourBucket } from './uptime.js';
