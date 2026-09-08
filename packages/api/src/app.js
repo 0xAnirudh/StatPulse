@@ -2,6 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { log, ApiError, config } from '@statpulse/core';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
 
 /**
  * The Express application, with no server attached.
@@ -55,6 +56,18 @@ export function createApp() {
   });
 
   app.use('/health', healthRouter);
+
+  /**
+   * Everything public is versioned.
+   *
+   * People write scripts against a status endpoint and then never touch
+   * them again. A breaking change gets /v2 rather than breaking those,
+   * and the unversioned path the original design sketched redirects
+   * rather than 404ing anyone who bookmarked it.
+   */
+  app.use('/api/v1/auth', authRouter);
+
+  app.use('/api/status', (req, res) => res.redirect(301, '/api/v1/status'));
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.path}` } });
