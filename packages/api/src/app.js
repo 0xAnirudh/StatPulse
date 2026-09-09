@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import { log, ApiError, config } from '@statpulse/core';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { statusRouter } from './routes/status.js';
 
 /**
  * The Express application, with no server attached.
@@ -66,6 +67,7 @@ export function createApp() {
    * rather than 404ing anyone who bookmarked it.
    */
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/status', statusRouter);
 
   app.use('/api/status', (req, res) => res.redirect(301, '/api/v1/status'));
 
