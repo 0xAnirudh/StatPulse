@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 import { config } from '../config.js';
 import { log } from '../log.js';
 import { backoffDelay } from '../util/backoff.js';
+import { loadScripts } from './scripts.js';
 
 /**
  * Redis client.
@@ -48,12 +49,26 @@ export function getRedis() {
   return client;
 }
 
+/**
+ * Connect, and register the Lua scripts.
+ *
+ * Loading happens here rather than in the API's boot sequence because
+ * the API is not the only thing that connects - the workers, the seed
+ * script and the test suite all do, and every one of them needs the
+ * scripts defined. Leaving it in server.js means `redis.ratelimit is not
+ * a function` everywhere else.
+ */
 export async function connectRedis() {
   const redis = getRedis();
-  if (redis.status === 'ready') return redis;
   if (redis.status === 'wait' || redis.status === 'end') await redis.connect();
+  if (!scriptsLoaded) {
+    await loadScripts(redis);
+    scriptsLoaded = true;
+  }
   return redis;
 }
+
+let scriptsLoaded = false;
 
 export async function redisStatus() {
   const redis = getRedis();
@@ -75,5 +90,6 @@ export async function disconnectRedis() {
   if (!client) return;
   await client.quit().catch(() => client.disconnect());
   client = null;
+  scriptsLoaded = false;
   log.info('redis disconnected');
 }
