@@ -10,3 +10,5 @@ export {
 export { worse, deriveFromComponents, deriveFromIncidents, deriveSystemStatus } from './status.js';
 
 export { uptimePercent, meanResponseMs, hourBucket } from './uptime.js';
+
+export { DEFAULT_THRESHOLDS, OUTCOME, EMPTY_COUNTERS, classify, applyOutcome } from './health.js';
