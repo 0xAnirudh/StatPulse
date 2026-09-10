@@ -174,7 +174,7 @@ line of code. Each is resolved here rather than discovered in week three.
 | #   | Issue                                                                                                                             | Resolution                                                                                                                                                                                           |
 | --- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `GET /api/status` in the data-flow diagram vs `GET /api/v1/status` in the endpoint table                                          | **[DECISION]** everything is under `/api/v1`. `/api/status` 301s to it.                                                                                                                              |
-| 2   | The folder listing is TypeScript (`.ts`); the model samples are JavaScript                                                        | **[DECISION]** TypeScript, `strict: true`. The enums and payload shapes here are worth having checked.                                                                                               |
+| 2   | The folder listing is TypeScript (`.ts`); the model samples are JavaScript                                                        | **[DECISION]** JavaScript, ESM throughout. The enums are frozen objects in one shared module, which gets most of what a type would have caught, and the whole toolchain stays `node src/server.js`.  |
 | 3   | `status.yourcompany.com` and "agencies" imply multi-tenancy, but no `Organization` model exists and nothing is scoped to a tenant | **[DECISION]** carry an `Organization` from day one, resolved from the `Host` header, seeded with one default org. Cheap now, painful to retrofit into every query, index, and cache key later. §4.2 |
 | 4   | Components and incidents have `POST` but no `GET`/`PATCH`/`DELETE`; an admin cannot list or fix what they created                 | Added as FR-C2. Full CRUD in §6.5.                                                                                                                                                                   |
 | 5   | `auth.controller` mentions token refresh; no refresh endpoint is in the table                                                     | Added: `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`. §6.4                                                                                                                                 |
@@ -352,7 +352,7 @@ a second customer?" is a config change instead of a migration.
 ### 4.3 Schemas
 
 ```ts
-// models/Organization.ts
+// models/Organization.js
 {
   name:        String,            // "Acme Inc"
   slug:        { type: String, unique: true, lowercase: true },   // "acme"
@@ -367,7 +367,7 @@ a second customer?" is a config change instead of a migration.
 ```
 
 ```ts
-// models/User.ts
+// models/User.js
 {
   orgId:        { type: ObjectId, ref: 'Organization', required: true, index: true },
   email:        { type: String, required: true, lowercase: true, trim: true },
@@ -385,7 +385,7 @@ accidental `res.json(user)` — a `toJSON` transform additionally strips
 `__v` and `passwordHash`.
 
 ```ts
-// models/Component.ts
+// models/Component.js
 {
   orgId:       { type: ObjectId, ref: 'Organization', required: true },
   name:        { type: String, required: true },         // "Payment Gateway API"
@@ -425,7 +425,7 @@ a 200 ms database and a 3 s report builder cannot share one threshold),
 `checkIntervalSec` (not everything deserves 1,440 checks a day).
 
 ```ts
-// models/Incident.ts
+// models/Incident.js
 {
   orgId:   { type: ObjectId, ref: 'Organization', required: true },
   title:   { type: String, required: true },
@@ -455,7 +455,7 @@ the public page's incident query an index scan over a handful of
 documents rather than a filter over every incident ever recorded.
 
 ```ts
-// models/PingSample.ts
+// models/PingSample.js
 {
   _id:         String,      // = the Redis stream entry id  → idempotent re-insert
   ts:          Date,
@@ -485,7 +485,7 @@ duplicate-key defence, and make the §5.4.3 watermark the _only_ guard for
 samples as well as rollups. Not worth it at 7 MB/day.
 
 ```ts
-// models/UptimeRollup.ts
+// models/UptimeRollup.js
 {
   orgId:       ObjectId,
   componentId: ObjectId,
@@ -502,7 +502,7 @@ samples as well as rollups. Not worth it at 7 MB/day.
 ```
 
 ```ts
-// models/Subscriber.ts     (v1.5)
+// models/Subscriber.js     (v1.5)
 {
   orgId:      ObjectId,
   channel:    { type: String, enum: ['email'], default: 'email' },
@@ -636,7 +636,7 @@ the TTL bounds the error at 60 seconds. That is the real reason a TTL
 exists on a key that is explicitly invalidated: the TTL is not the
 freshness mechanism, it is the **correctness backstop**.
 
-Implementation: a small `cache.middleware.ts` for the read path and an
+Implementation: a small `cache.js` service for the read path and an
 explicit `invalidateStatus(orgId)` called from the service layer for
 writes — not from the controller, so that anything that mutates state
 invalidates regardless of who called it.
@@ -1466,87 +1466,67 @@ controllers. CI: lint → typecheck → unit → integration → build.
 
 ## 11. Repository layout
 
-The brief's structure, with the gaps from §2.4 filled in. Additions and
-changes are marked.
+Four workspace packages rather than the brief's single `src/`, and the
+split maps exactly onto the process topology in §3.1: two of these
+packages are deployed as separate processes, and the boundary stops the
+API from pulling in a queue library it never uses.
 
 ```text
-statpulse-backend/
-├── src/
-│   ├── config/
-│   │   ├── env.ts                  # + zod-validated env, fails fast at boot
-│   │   ├── db.ts                   #   mongoose connection + timeouts
-│   │   └── redis.ts                #   ioredis singletons: app, subscriber, bullmq
-│   ├── controllers/
-│   │   ├── auth.controller.ts
-│   │   ├── status.controller.ts
-│   │   ├── incident.controller.ts
-│   │   ├── component.controller.ts # + admin CRUD (gap #4)
-│   │   └── subscriber.controller.ts# + v1.5 (gap #6)
-│   ├── middleware/
-│   │   ├── auth.middleware.ts      #   JWT verify + RBAC
-│   │   ├── cache.middleware.ts     #   cache-aside + ETag
-│   │   ├── rateLimiter.ts          #   ZSET sliding window
-│   │   ├── tenant.ts               # + resolve org from Host / JWT (gap #3)
-│   │   ├── validate.ts             # + zod boundary
-│   │   ├── requestContext.ts       # + requestId + AsyncLocalStorage
-│   │   └── errorHandler.ts         # + the one place errors become responses
-│   ├── models/
-│   │   ├── Organization.ts         # + (gap #3)
-│   │   ├── User.ts
-│   │   ├── Component.ts
-│   │   ├── Incident.ts
-│   │   ├── PingSample.ts           # + time-series
-│   │   ├── UptimeRollup.ts         # +
-│   │   └── Subscriber.ts           # + v1.5
-│   ├── queues/
-│   │   ├── index.ts                # + queue registry + graceful shutdown
-│   │   ├── ping.worker.ts          #   the check
-│   │   ├── ping.scheduler.ts       # + the 60 s fan-out (§5.3.1)
-│   │   ├── flush.worker.ts         # + write-behind drain (gap #7)
-│   │   └── notify.worker.ts        # + v1.5
-│   ├── routes/
-│   │   ├── auth.routes.ts
-│   │   ├── status.routes.ts
-│   │   ├── incident.routes.ts
-│   │   ├── admin.routes.ts         # +
-│   │   └── internal.routes.ts      # + healthz / readyz / metrics
-│   ├── services/
-│   │   ├── ping.service.ts         #   HTTP check execution
-│   │   ├── status.service.ts       # + payload composition + aggregation
-│   │   ├── cache.service.ts        # + get/rebuild/invalidate, single-flight
-│   │   ├── metrics.service.ts      # + XADD, flush, rollups
-│   │   ├── token.service.ts        # + issue/rotate/revoke
-│   │   └── incident.service.ts     # +
-│   ├── lib/
-│   │   ├── ssrfGuard.ts            # + §7.2 — the highest-risk file in the repo
-│   │   ├── lua/                    # + rateLimit.lua, releaseLock.lua
-│   │   ├── logger.ts               # + pino with redaction
-│   │   └── errors.ts               # + AppError taxonomy
-│   ├── types/
-│   ├── app.ts                      #   express wiring, exported un-listened for tests
-│   ├── server.ts                   # + listen + graceful shutdown
-│   └── worker.ts                   # + the worker process entry point
-├── tests/
-│   ├── unit/  integration/  contract/  load/
-├── scripts/
-│   ├── seed.ts                     # + org + admin + demo components
-│   └── rollup-daily.ts             # + nightly aggregation (§5.4.5)
-├── .env.example
-├── docker-compose.yml              #   mongo + redis (+ a tarpit target for tests)
-├── Dockerfile
-├── tsconfig.json  eslint.config.js  .prettierrc
-└── package.json
+statpulse/
+├── packages/
+│   ├── shared/src/          pure domain logic - no I/O, no database, no clock
+│   │   ├── constants.js       the vocabulary: statuses, impacts, error classes
+│   │   ├── status.js          worst-of aggregation over checks and declarations
+│   │   ├── health.js          the hysteresis state machine
+│   │   └── uptime.js          percentages over pre-aggregated buckets
+│   │
+│   ├── core/src/            infrastructure shared by every process
+│   │   ├── config.js          zod-validated env, fails fast at boot
+│   │   ├── log.js             structured lines, secrets redacted by key name
+│   │   ├── db/mongo.js        connection with indefinite retry
+│   │   ├── redis/
+│   │   │   ├── client.js      one ioredis singleton + lua registration
+│   │   │   ├── keys.js        every key the system uses, in one place
+│   │   │   └── scripts.js     lua loader, key-count directive, collision guard
+│   │   ├── lua/               unlock.lua, ratelimit.lua
+│   │   ├── models/            the six mongoose schemas
+│   │   └── util/              backoff.js, errors.js, ssrf.js
+│   │
+│   ├── api/src/             the HTTP process
+│   │   ├── app.js             express wiring, exported un-listened for tests
+│   │   ├── server.js          listen + graceful shutdown
+│   │   ├── routes/            health, auth, status, incidents, admin
+│   │   ├── middleware/        authenticate, validate, tenant, rateLimit
+│   │   ├── schemas/           zod request shapes
+│   │   ├── services/          token, auth, status, cache, incident
+│   │   └── scripts/seed.js
+│   │
+│   └── jobs/src/            the worker processes
+│       ├── worker.js          entry point; ROLE selects ping or flush
+│       ├── queues.js          bullmq queue + connection setup
+│       ├── ping.scheduler.js  the 60s fan-out, jittered, duplicate-safe
+│       ├── ping.worker.js     one check, and the transition it may cause
+│       └── flush.worker.js    drains the metrics stream into mongo
+│
+├── tests/{unit,integration,contract}/
+├── docs/architecture.md     decisions that were not obvious
+├── docker-compose.yml       mongo + redis
+└── plan.md
 ```
 
-Two structural notes:
+Three structural notes:
 
-- `app.ts` exports the Express app without calling `listen`; `server.ts`
-  listens. This is what lets `supertest` drive the whole stack in-process
-  without binding a port or leaking a handle between test files.
-- `worker.ts` is a separate entry point sharing `src/`, not a separate
-  package. One build, one image, `CMD` selects the role.
-
----
+- **`shared` has no dependencies at all.** Status aggregation, the
+  hysteresis machine and the uptime maths are the logic most worth
+  testing and the least worth booting a database for. Keeping them
+  import-free means the unit suite runs in under a second.
+- **`app.js` exports the Express app without calling `listen`;**
+  `server.js` listens. That is what lets Supertest drive the whole stack
+  in-process without binding a port or leaking a handle between test
+  files.
+- **`jobs` is one package with two roles,** selected at boot. The ping
+  worker scales horizontally; the flusher is a singleton (§5.4.3). One
+  image, one dependency tree, different `CMD`.
 
 ## 12. Configuration
 
@@ -1725,7 +1705,7 @@ state); P7 needs the routes to exist.
 
 ### Taken in this plan **[DECISION]**
 
-1. TypeScript, strict. 2. Everything under `/api/v1`. 3. `Organization`
+1. JavaScript, ESM, no build step. 2. Everything under `/api/v1`. 3. `Organization`
    from day one, one seeded org. 4. Refresh tokens are opaque, not JWTs.
 2. Redis Streams, not lists, for the metrics buffer. 6. Polling with
    ETag in v1; SSE in v1.5. 7. Registration open for the first user only.
