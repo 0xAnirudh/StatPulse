@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { config, log, getRedis, sleep } from '@statpulse/core';
+import { config, log, getRedis, sleep, invalidateStatus } from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
 import { composeStatusPayload, etagFor } from './status.js';
 
@@ -120,25 +120,8 @@ export async function readStatus(org) {
 }
 
 /**
- * Drop the cached payload after a write.
- *
- * Two rules here, both non-obvious, both the source of the classic bug.
- *
- * DELETE, never SET. Writing the new payload from inside a write request
- * means two concurrent writers can land theirs out of order and the
- * loser's stale view sticks for a full TTL. Deleting is idempotent and
- * order-independent: the next reader rebuilds from whatever is committed.
- *
- * AFTER the Mongo write commits, never before. Deleting first opens a
- * window in which a concurrent reader repopulates the cache from
- * pre-write data - and then the TTL keeps that wrong answer alive for a
- * full minute.
- *
- * The stale copy is deliberately left alone. It is the Mongo-is-down
- * fallback, and a slightly old fallback is the entire point of having
- * one.
+ * Re-exported so callers on the read side have one import for the whole
+ * cache, while the invalidation itself lives in core where the worker
+ * can reach it too.
  */
-export async function invalidateStatus(org) {
-  const slug = typeof org === 'string' ? org : org.slug;
-  await getRedis().del(keys.statusCache(slug), keys.statusEtag(slug));
-}
+export { invalidateStatus };

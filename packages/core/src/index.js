@@ -12,3 +12,4 @@ export {
   pinnedLookup,
   UnsafeTargetError,
 } from './util/ssrf.js';
+export { invalidateStatus, invalidateStatusByOrgId, orgSlugById, clearSlugCache } from './cache.js';
