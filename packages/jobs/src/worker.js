@@ -6,9 +6,10 @@ import {
   disconnectMongo,
   disconnectRedis,
 } from '@statpulse/core';
-import { registerWorker, closeQueues, QUEUE } from './queues.js';
+import { registerWorker, getQueue, closeQueues, QUEUE } from './queues.js';
 import { sweep, scheduleSweeps, SWEEP_JOB, CHECK_JOB } from './ping.scheduler.js';
 import { runCheck } from './ping.worker.js';
+import { flush } from './flush.worker.js';
 
 /**
  * The worker process.
@@ -22,6 +23,20 @@ import { runCheck } from './ping.worker.js';
  * Kept separate, the checker can be scaled, restarted or crash-looped
  * without the status page noticing.
  */
+
+const FLUSH_JOB = 'drain';
+
+async function scheduleFlushes() {
+  const queue = getQueue(QUEUE.FLUSH);
+  const every = config.FLUSH_INTERVAL_MS;
+
+  // Upserted, so restarting does not accumulate a second schedule.
+  if (typeof queue.upsertJobScheduler === 'function') {
+    await queue.upsertJobScheduler(FLUSH_JOB, { every }, { name: FLUSH_JOB });
+  } else {
+    await queue.add(FLUSH_JOB, {}, { repeat: { every }, jobId: FLUSH_JOB });
+  }
+}
 
 async function main() {
   await Promise.all([connectMongo(), connectRedis()]);
@@ -44,8 +59,23 @@ async function main() {
     },
   );
 
+  /**
+   * The flusher, concurrency 1.
+   *
+   * Two flushers reading different entries of the same hour would both
+   * increment the rollups legitimately and both be wrong about the
+   * total. The Redis lock inside flush() guards against a second
+   * *process*; this guards against a second job in this one.
+   */
+  registerWorker(QUEUE.FLUSH, () => flush(), { concurrency: 1 });
+
   await scheduleSweeps();
-  log.info('ping worker running', { concurrency: config.PING_CONCURRENCY });
+  await scheduleFlushes();
+
+  log.info('worker running', {
+    pingConcurrency: config.PING_CONCURRENCY,
+    flushIntervalMs: config.FLUSH_INTERVAL_MS,
+  });
 }
 
 main().catch((err) => {
