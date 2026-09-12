@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { log, ApiError, getRedis } from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
 import { publicTenant } from '../middleware/tenant.js';
+import { statusRateLimit } from '../middleware/rateLimit.js';
 import { readStatus } from '../services/cache.js';
 
 export const statusRouter = Router();
@@ -13,7 +14,7 @@ export const statusRouter = Router();
  * system: when something breaks, this is what thousands of people
  * refresh at once.
  */
-statusRouter.get('/', publicTenant, async (req, res, next) => {
+statusRouter.get('/', statusRateLimit, publicTenant, async (req, res, next) => {
   try {
     /**
      * Answer a conditional request before doing anything else.

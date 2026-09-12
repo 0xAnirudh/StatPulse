@@ -6,6 +6,7 @@ import { registerSchema, loginSchema } from '../schemas/auth.js';
 import { register, authenticate as checkCredentials } from '../services/auth.js';
 import { authenticate, requireUser } from '../middleware/authenticate.js';
 import { publicTenant, tokenTenant } from '../middleware/tenant.js';
+import { loginRateLimit, rateLimit, BUCKETS } from '../middleware/rateLimit.js';
 import {
   issueAccessToken,
   issueRefreshToken,
@@ -74,17 +75,29 @@ async function issueSession(req, res, user) {
  * scanned and sprayed - a malformed request should be refused without
  * ever reaching Mongo.
  */
-authRouter.post('/register', validateBody(registerSchema), publicTenant, async (req, res) => {
-  const user = await register(req.body, req.org);
-  const accessToken = await issueSession(req, res, user);
-  res.status(201).json({ accessToken, user: user.toPrivate() });
-});
+authRouter.post(
+  '/register',
+  validateBody(registerSchema),
+  rateLimit(BUCKETS.AUTH_IP),
+  publicTenant,
+  async (req, res) => {
+    const user = await register(req.body, req.org);
+    const accessToken = await issueSession(req, res, user);
+    res.status(201).json({ accessToken, user: user.toPrivate() });
+  },
+);
 
-authRouter.post('/login', validateBody(loginSchema), publicTenant, async (req, res) => {
-  const user = await checkCredentials(req.body, req.org);
-  const accessToken = await issueSession(req, res, user);
-  res.json({ accessToken, user: user.toPrivate() });
-});
+authRouter.post(
+  '/login',
+  validateBody(loginSchema),
+  ...loginRateLimit,
+  publicTenant,
+  async (req, res) => {
+    const user = await checkCredentials(req.body, req.org);
+    const accessToken = await issueSession(req, res, user);
+    res.json({ accessToken, user: user.toPrivate() });
+  },
+);
 
 /**
  * Exchange a refresh cookie for a new access token, and rotate.
