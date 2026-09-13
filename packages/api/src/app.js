@@ -4,6 +4,8 @@ import { log, ApiError, config } from '@statpulse/core';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { statusRouter } from './routes/status.js';
+import { incidentsRouter } from './routes/incidents.js';
+import { adminRouter } from './routes/admin.js';
 
 /**
  * The Express application, with no server attached.
@@ -68,6 +70,8 @@ export function createApp() {
    */
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/status', statusRouter);
+  app.use('/api/v1/incidents', incidentsRouter);
+  app.use('/api/v1/admin', adminRouter);
 
   app.use('/api/status', (req, res) => res.redirect(301, '/api/v1/status'));
 
