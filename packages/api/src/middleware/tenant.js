@@ -55,6 +55,10 @@ export async function publicTenant(req, res, next) {
     req.org = await resolveByHost(req.get('host'));
     return next();
   } catch (err) {
+    // Logged, not swallowed. A page quietly running on a stale org
+    // record is fine; a page doing it without anyone knowing why is not.
+    log.warn('tenant lookup failed', { err: err.message, servingCached: Boolean(cached) });
+
     if (cached) {
       req.org = cached.org;
       req.tenantStale = true;
