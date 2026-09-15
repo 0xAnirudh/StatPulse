@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { getRedis } from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
-import { Component, Incident } from '@statpulse/core/models';
-import { deriveSystemStatus } from '@statpulse/shared';
+import { Component, Incident, UptimeRollup } from '@statpulse/core/models';
+import { deriveSystemStatus, uptimePercent, meanResponseMs } from '@statpulse/shared';
 
 /**
  * Composing the public status payload.
@@ -149,4 +149,68 @@ export async function composeStatusPayload(org) {
 export function etagFor(payload) {
   const { updatedAt: _updatedAt, stale: _stale, ...content } = payload;
   return `W/"${createHash('sha1').update(JSON.stringify(content)).digest('base64url')}"`;
+}
+
+/**
+ * One component, with the uptime history a chart needs.
+ *
+ * Separate from the main payload on purpose. The status matrix is read
+ * thousands of times a minute during an outage and has to stay cheap;
+ * this is read when somebody clicks through to one service, which is
+ * rare enough to afford an aggregation.
+ */
+export async function composeComponentDetail(org, slug, { days = 90 } = {}) {
+  const component = await Component.findOne({
+    orgId: org._id,
+    slug,
+    isPublic: true,
+    deletedAt: null,
+  }).lean();
+
+  if (!component) return null;
+
+  const since = new Date(Date.now() - days * 24 * 3_600_000);
+  const [live, rollups] = await Promise.all([
+    getRedis().hgetall(keys.componentLive(component._id)),
+    UptimeRollup.find({ componentId: component._id, bucket: { $gte: since } })
+      .sort({ bucket: 1 })
+      .lean(),
+  ]);
+
+  const window = (fromMs) => rollups.filter((r) => r.bucket >= new Date(Date.now() - fromMs));
+
+  /**
+   * Hourly buckets folded into days for the chart.
+   *
+   * 2,160 points is more than any chart can draw and more than anyone
+   * wants to download; 90 is exactly what the familiar row of bars
+   * needs.
+   */
+  const byDay = new Map();
+  for (const r of rollups) {
+    const day = r.bucket.toISOString().slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, { total: 0, ok: 0, degraded: 0, down: 0, sumMs: 0 });
+    const d = byDay.get(day);
+    d.total += r.total;
+    d.ok += r.ok;
+    d.degraded += r.degraded;
+    d.down += r.down;
+    d.sumMs += r.sumMs;
+  }
+
+  return {
+    ...publicComponent(component, live, {
+      '24h': uptimePercent(window(24 * 3_600_000)),
+      '7d': uptimePercent(window(7 * 24 * 3_600_000)),
+      '90d': uptimePercent(rollups),
+    }),
+    group: component.group ?? null,
+    meanResponseMs: meanResponseMs(rollups),
+    history: [...byDay].map(([date, d]) => ({
+      date,
+      uptime: uptimePercent([d]),
+      meanResponseMs: meanResponseMs([d]),
+      checks: d.total,
+    })),
+  };
 }

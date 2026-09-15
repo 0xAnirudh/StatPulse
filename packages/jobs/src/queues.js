@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { config, log } from '@statpulse/core';
+import { QUEUE } from '@statpulse/shared';
 
 /**
  * Queue plumbing.
@@ -23,13 +24,10 @@ export function queueConnection() {
   });
 }
 
-export const QUEUE = Object.freeze({
-  PING: 'ping',
-  FLUSH: 'flush',
-});
-
 const queues = new Map();
 const workers = [];
+
+export { QUEUE };
 
 export function getQueue(name) {
   if (!queues.has(name)) {

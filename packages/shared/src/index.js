@@ -5,6 +5,8 @@ export {
   INCIDENT_STATUS,
   INCIDENT_IMPACT,
   ERROR_CLASS,
+  QUEUE,
+  JOB,
 } from './constants.js';
 
 export { worse, deriveFromComponents, deriveFromIncidents, deriveSystemStatus } from './status.js';

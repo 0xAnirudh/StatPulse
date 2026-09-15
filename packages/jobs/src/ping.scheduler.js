@@ -1,5 +1,6 @@
 import { config, log } from '@statpulse/core';
 import { Component } from '@statpulse/core/models';
+import { JOB } from '@statpulse/shared';
 import { getQueue, QUEUE } from './queues.js';
 
 /**
@@ -12,8 +13,8 @@ import { getQueue, QUEUE } from './queues.js';
  * do the parallelism and bounds the damage of a tarpit to one slot.
  */
 
-export const SWEEP_JOB = 'sweep';
-export const CHECK_JOB = 'check';
+export const SWEEP_JOB = JOB.SWEEP;
+export const CHECK_JOB = JOB.CHECK;
 
 /**
  * How far checks are spread out.

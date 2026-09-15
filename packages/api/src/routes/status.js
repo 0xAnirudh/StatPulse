@@ -4,6 +4,7 @@ import { keys } from '@statpulse/core/redis';
 import { publicTenant } from '../middleware/tenant.js';
 import { statusRateLimit } from '../middleware/rateLimit.js';
 import { readStatus } from '../services/cache.js';
+import { composeComponentDetail } from '../services/status.js';
 
 export const statusRouter = Router();
 
@@ -56,5 +57,24 @@ statusRouter.get('/', statusRateLimit, publicTenant, async (req, res, next) => {
      */
     log.error('status read failed', { org: req.org?.slug, err: err.message });
     next(ApiError.unavailable('status_unavailable', 'Status is temporarily unavailable.'));
+  }
+});
+
+/**
+ * One component in detail, with ninety days of history.
+ *
+ * Not behind the status cache: it is read when somebody clicks through
+ * to a single service, which is rare enough to afford the aggregation
+ * that the front page could not.
+ */
+statusRouter.get('/components/:slug', statusRateLimit, publicTenant, async (req, res, next) => {
+  try {
+    const component = await composeComponentDetail(req.org, req.params.slug);
+    if (!component) throw ApiError.notFound('component_not_found', 'No such component');
+
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ component });
+  } catch (err) {
+    next(err);
   }
 });

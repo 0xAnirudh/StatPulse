@@ -70,13 +70,3 @@ export async function requireUser(req, res, next) {
     next(err);
   }
 }
-
-/** Role gate. Owners may manage people; admins may manage the service. */
-export function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!roles.includes(req.auth.role)) {
-      return next(ApiError.forbidden('insufficient_role', `Requires one of: ${roles.join(', ')}`));
-    }
-    next();
-  };
-}

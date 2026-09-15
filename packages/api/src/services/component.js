@@ -103,6 +103,12 @@ export async function deleteComponent(org, slug) {
   return component;
 }
 
+export async function findComponent(org, slug) {
+  const component = await Component.findOne({ orgId: org._id, slug, deletedAt: null });
+  if (!component) throw ApiError.notFound('component_not_found', 'No such component');
+  return component;
+}
+
 /** The admin view - everything, including what the public page hides. */
 export function toAdminJson(component) {
   return {

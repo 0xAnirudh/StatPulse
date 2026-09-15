@@ -76,3 +76,22 @@ export const ERROR_CLASS = Object.freeze({
   BLOCKED: 'blocked',
   UNKNOWN: 'unknown',
 });
+
+/**
+ * Queue and job names.
+ *
+ * Here rather than in the worker package because both sides need them:
+ * the workers to register handlers, the API to enqueue an on-demand
+ * check. Sharing the constant is what stops the API importing the whole
+ * worker package - and its axios and bullmq trees - to learn one string.
+ */
+export const QUEUE = Object.freeze({
+  PING: 'ping',
+  FLUSH: 'flush',
+});
+
+export const JOB = Object.freeze({
+  SWEEP: 'sweep',
+  CHECK: 'check',
+  DRAIN: 'drain',
+});

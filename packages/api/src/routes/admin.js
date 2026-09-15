@@ -10,9 +10,11 @@ import {
   createComponent,
   updateComponent,
   deleteComponent,
+  findComponent,
   toAdminJson,
 } from '../services/component.js';
 import { createIncident, addUpdate, listIncidents, findIncident } from '../services/incident.js';
+import { requestCheck } from '../services/queue.js';
 
 export const adminRouter = Router();
 
@@ -48,6 +50,23 @@ adminRouter.delete('/components/:slug', async (req, res, next) => {
   try {
     await deleteComponent(req.org, req.params.slug);
     res.sendStatus(204);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Check this component now, without waiting for the next sweep.
+ *
+ * 202, not 200. The check runs in the worker; answering "done" here
+ * would mean holding an HTTP request open for a five-second network
+ * timeout, which is the coupling the separate worker exists to avoid.
+ */
+adminRouter.post('/components/:slug/check', async (req, res, next) => {
+  try {
+    const component = await findComponent(req.org, req.params.slug);
+    await requestCheck(component);
+    res.status(202).json({ queued: true, slug: component.slug });
   } catch (err) {
     next(err);
   }
