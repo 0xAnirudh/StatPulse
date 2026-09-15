@@ -2,6 +2,8 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { log, ApiError, config } from '@statpulse/core';
 import { healthRouter } from './routes/health.js';
+import { metricsRouter } from './routes/metrics.js';
+import { observeRequests } from './middleware/observe.js';
 import { authRouter } from './routes/auth.js';
 import { statusRouter } from './routes/status.js';
 import { incidentsRouter } from './routes/incidents.js';
@@ -31,6 +33,8 @@ export function createApp() {
    */
   app.set('trust proxy', 1);
 
+  // Before the routers, so it times everything including 404s.
+  app.use(observeRequests);
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 
@@ -59,6 +63,7 @@ export function createApp() {
   });
 
   app.use('/health', healthRouter);
+  app.use('/metrics', metricsRouter);
 
   /**
    * Everything public is versioned.

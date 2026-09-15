@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { config, log, getRedis, sleep, invalidateStatus } from '@statpulse/core';
+import {
+  config,
+  log,
+  getRedis,
+  sleep,
+  invalidateStatus,
+  increment,
+  observe,
+} from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
 import { composeStatusPayload, etagFor } from './status.js';
 
@@ -67,6 +75,7 @@ export async function readStatus(org) {
 
   const cached = await redis.get(cacheKey);
   if (cached) {
+    increment('cache_requests_total', { result: CACHE_RESULT.HIT });
     return {
       payload: JSON.parse(cached),
       etag: await redis.get(keys.statusEtag(org.slug)),
@@ -82,8 +91,14 @@ export async function readStatus(org) {
 
     if (won === 'OK') {
       try {
+        const rebuildStarted = process.hrtime.bigint();
         const payload = await composeStatusPayload(org);
         const etag = await writePayload(org, payload);
+        observe(
+          'cache_rebuild_duration_seconds',
+          Number(process.hrtime.bigint() - rebuildStarted) / 1e9,
+        );
+        increment('cache_requests_total', { result: CACHE_RESULT.MISS });
         return { payload, etag, result: CACHE_RESULT.MISS };
       } finally {
         // Released with a compare-and-delete, never a bare DEL: a slow
@@ -96,7 +111,10 @@ export async function readStatus(org) {
     // Someone else is rebuilding. Serving them a copy that is at most ten
     // minutes old, right now, beats making them queue for a fresh one.
     const stale = await readStale(org);
-    if (stale) return { payload: stale, etag: null, result: CACHE_RESULT.STALE };
+    if (stale) {
+      increment('cache_requests_total', { result: CACHE_RESULT.STALE });
+      return { payload: stale, etag: null, result: CACHE_RESULT.STALE };
+    }
 
     // No stale copy - a cold start. Wait briefly for the winner to
     // finish rather than piling on.

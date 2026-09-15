@@ -13,3 +13,4 @@ export {
   UnsafeTargetError,
 } from './util/ssrf.js';
 export { invalidateStatus, invalidateStatusByOrgId, orgSlugById, clearSlugCache } from './cache.js';
+export { increment, observe, registerGauge, render, resetMetrics } from './metrics.js';

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import net from 'node:net';
-import { log, getRedis, ApiError } from '@statpulse/core';
+import { log, getRedis, ApiError, increment } from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
 
 /**
@@ -115,6 +115,7 @@ export function rateLimit(bucket, identify = (req) => clientIdentity(req.ip)) {
     // Seconds, rounded up, per the HTTP spec. A sub-second wait still
     // has to be reported as 1 - a client that trusts a 0 retries
     // immediately and is refused again.
+    increment('ratelimit_rejections_total', { bucket: bucket.name });
     res.set('Retry-After', String(Math.max(1, Math.ceil(result.resetMs / 1000))));
     next(ApiError.tooManyRequests('rate_limited', 'Too many requests. Please slow down.'));
   };
