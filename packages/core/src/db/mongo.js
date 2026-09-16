@@ -16,6 +16,27 @@ import { backoffDelay, sleep } from '../util/backoff.js';
  * whole design exists to avoid.
  */
 
+/**
+ * How long a query waits for a connection before giving up.
+ *
+ * Mongoose buffers operations issued while disconnected and, by default,
+ * holds them for ten seconds before rejecting. On this system that is
+ * the wrong default twice over: the public read path has a fifty
+ * millisecond budget, and at two thousand requests a second a ten-second
+ * hold means twenty thousand requests sitting on sockets waiting for a
+ * database that is not coming back.
+ *
+ * A chaos test found exactly that - with both stores down, the status
+ * endpoint hung for over four seconds instead of returning the
+ * documented 503.
+ *
+ * Buffering is not turned off entirely, because the API binds its port
+ * before the stores connect (see server.js) and a request arriving in
+ * that window should wait briefly rather than fail. Two seconds covers
+ * the startup gap and bounds the outage case.
+ */
+mongoose.set('bufferTimeoutMS', 2_000);
+
 let connecting = null;
 
 export async function connectMongo({ maxAttempts = Infinity } = {}) {

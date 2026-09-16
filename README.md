@@ -146,6 +146,18 @@ timing out _and_ traffic is at its peak.
 ```bash
 npm test
 npm run lint
+npm run loadtest      # asserts NFR-1, and fails if it misses
+```
+
+The load test measures the cache _hit_ path, which is the one that
+matters: during an outage the cache is warm and everybody is reading it.
+Most recent run on a laptop, 50 components, a 10.5KB payload:
+
+```
+requests/sec   6536
+latency p50    6 ms
+latency p99    20 ms        NFR-1 asks for under 50
+non-2xx        0
 ```
 
 ---

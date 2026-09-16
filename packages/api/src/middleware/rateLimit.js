@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import net from 'node:net';
-import { log, getRedis, ApiError, increment } from '@statpulse/core';
+import { config, log, getRedis, ApiError, increment } from '@statpulse/core';
 import { keys } from '@statpulse/core/redis';
 
 /**
@@ -14,7 +14,12 @@ import { keys } from '@statpulse/core/redis';
 
 export const BUCKETS = Object.freeze({
   /** Cheap because it is cached; generous so an outage does not throttle readers. */
-  PUBLIC_STATUS: { name: 'public:status', limit: 120, windowMs: 60_000, failOpen: true },
+  PUBLIC_STATUS: {
+    name: 'public:status',
+    limit: config.STATUS_RATE_LIMIT,
+    windowMs: 60_000,
+    failOpen: true,
+  },
 
   /** Feeds a notification queue. The one endpoint a bot actually wants. */
   PUBLIC_SUBSCRIBE: { name: 'public:subscribe', limit: 5, windowMs: 60_000, failOpen: true },

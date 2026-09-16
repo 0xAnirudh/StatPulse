@@ -16,12 +16,14 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "loadtest": "node tests/load/status.js"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "concurrently": "^10.0.5",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",

@@ -86,6 +86,22 @@ const schema = z.object({
   STATUS_CACHE_TTL_SEC: z.coerce.number().int().min(5).max(600).default(60),
   STATUS_STALE_TTL_SEC: z.coerce.number().int().min(60).max(86_400).default(600),
 
+  /**
+   * Requests a minute, per client, for the public status page.
+   *
+   * Configurable because the right value is a product judgement, not a
+   * constant. 120 is generous for a browser polling every thirty
+   * seconds and still bounds a scraper - but everyone behind one
+   * corporate NAT shares a bucket, so a large customer reading the page
+   * during an outage can look like one very busy client. Raise it if
+   * that is your shape of traffic; the endpoint is a Redis GET and the
+   * cost of serving it is not the constraint.
+   *
+   * The load test sets it high deliberately, to measure the read path
+   * rather than the limiter.
+   */
+  STATUS_RATE_LIMIT: z.coerce.number().int().min(1).max(1_000_000).default(120),
+
   PING_DEFAULT_INTERVAL_SEC: z.coerce.number().int().min(30).max(3_600).default(60),
   PING_CONCURRENCY: z.coerce.number().int().min(1).max(200).default(20),
   FLUSH_INTERVAL_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(600_000),

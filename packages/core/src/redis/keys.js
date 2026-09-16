@@ -31,6 +31,15 @@ export const statusEtag = (org) => `cache:etag:${org}`;
 /** Held by the one request permitted to rebuild a missing payload. */
 export const statusLock = (org) => `lock:status:${org}`;
 
+/**
+ * A resolved organization, by host.
+ *
+ * On the hot read path, so that a cache hit touches Mongo zero times -
+ * which is what "served from Redis" has to mean if the page is to
+ * survive the database being the thing that is down.
+ */
+export const orgCache = (host) => `cache:org:${host}`;
+
 /** Uptime percentages, refreshed by the flusher, merged in on a miss. */
 export const uptimeCache = (org) => `cache:uptime:${org}`;
 
