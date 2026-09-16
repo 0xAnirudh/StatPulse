@@ -10,6 +10,7 @@ import { registerWorker, getQueue, closeQueues, QUEUE } from './queues.js';
 import { sweep, scheduleSweeps, SWEEP_JOB, CHECK_JOB } from './ping.scheduler.js';
 import { runCheck } from './ping.worker.js';
 import { flush } from './flush.worker.js';
+import { rollupDaily } from './rollup-daily.js';
 
 /**
  * The worker process.
@@ -25,6 +26,7 @@ import { flush } from './flush.worker.js';
  */
 
 const FLUSH_JOB = 'drain';
+const ROLLUP_JOB = 'rollup-daily';
 
 async function scheduleFlushes() {
   const queue = getQueue(QUEUE.FLUSH);
@@ -35,6 +37,24 @@ async function scheduleFlushes() {
     await queue.upsertJobScheduler(FLUSH_JOB, { every }, { name: FLUSH_JOB });
   } else {
     await queue.add(FLUSH_JOB, {}, { repeat: { every }, jobId: FLUSH_JOB });
+  }
+}
+
+/**
+ * Nightly, at 03:10 UTC.
+ *
+ * Off the hour on purpose: everything else in this system fires on a
+ * round number, and stacking a heavy aggregation on top of a sweep and a
+ * flush at exactly 03:00 is a self-inflicted spike.
+ */
+async function scheduleRollups() {
+  const queue = getQueue(QUEUE.FLUSH);
+  const pattern = '10 3 * * *';
+
+  if (typeof queue.upsertJobScheduler === 'function') {
+    await queue.upsertJobScheduler(ROLLUP_JOB, { pattern }, { name: ROLLUP_JOB });
+  } else {
+    await queue.add(ROLLUP_JOB, {}, { repeat: { pattern }, jobId: ROLLUP_JOB });
   }
 }
 
@@ -67,10 +87,13 @@ async function main() {
    * total. The Redis lock inside flush() guards against a second
    * *process*; this guards against a second job in this one.
    */
-  registerWorker(QUEUE.FLUSH, () => flush(), { concurrency: 1 });
+  registerWorker(QUEUE.FLUSH, (job) => (job.name === ROLLUP_JOB ? rollupDaily() : flush()), {
+    concurrency: 1,
+  });
 
   await scheduleSweeps();
   await scheduleFlushes();
+  await scheduleRollups();
 
   log.info('worker running', {
     pingConcurrency: config.PING_CONCURRENCY,
