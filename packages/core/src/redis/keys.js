@@ -55,6 +55,15 @@ export const sessionToken = (hash) => `session:token:${hash}`;
  */
 export const sessionUsed = (hash) => `session:used:${hash}`;
 
+/**
+ * A pending invitation, keyed by the hash of its token.
+ *
+ * The token is never stored - only its hash, the same way a password is.
+ * An invitation is a credential: whoever holds it becomes an
+ * administrator, so a Redis console should not hand out working ones.
+ */
+export const invite = (hash) => `invite:${hash}`;
+
 /* ---- component liveness ---------------------------------------------- */
 
 /**

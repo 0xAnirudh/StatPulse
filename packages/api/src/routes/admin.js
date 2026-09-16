@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireUser } from '../middleware/authenticate.js';
+import { authenticate, requireUser, requireRole } from '../middleware/authenticate.js';
 import { tokenTenant } from '../middleware/tenant.js';
 import { validateBody } from '../middleware/validate.js';
 import { adminWriteRateLimit } from '../middleware/rateLimit.js';
@@ -15,6 +15,8 @@ import {
 } from '../services/component.js';
 import { createIncident, addUpdate, listIncidents, findIncident } from '../services/incident.js';
 import { requestCheck } from '../services/queue.js';
+import { inviteUser, listUsers, updateUser } from '../services/invite.js';
+import { inviteSchema, updateUserSchema } from '../schemas/auth.js';
 
 export const adminRouter = Router();
 
@@ -113,3 +115,65 @@ adminRouter.get('/incidents/:slug', async (req, res, next) => {
     next(err);
   }
 });
+
+/* ---- people ---------------------------------------------------------- */
+
+/**
+ * Owner only, all of it.
+ *
+ * Declaring an incident at 3am and deciding who else holds the keys are
+ * different kinds of authority, and an admin needs the first without the
+ * second.
+ */
+const ownerOnly = requireRole('owner');
+
+adminRouter.get('/users', ownerOnly, async (req, res) => {
+  const users = await listUsers(req.org);
+  res.json({
+    users: users.map((u) => ({
+      id: u._id.toString(),
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      lastLoginAt: u.lastLoginAt ?? null,
+      memberSince: u.createdAt,
+    })),
+  });
+});
+
+adminRouter.post('/users/invite', ownerOnly, validateBody(inviteSchema), async (req, res, next) => {
+  try {
+    const { user, token, expiresInSec } = await inviteUser(req.org, req.body, req.user);
+    /**
+     * The token comes back in the response.
+     *
+     * There is no email provider wired up yet, so the owner passes it on
+     * themselves. That is honest for now and it is also why the token is
+     * short-lived and single-use - but it does mean the invitation
+     * travels through whatever channel they choose, which is worth
+     * knowing. Sending it directly is the job of the notification
+     * worker, when that exists.
+     */
+    res.status(201).json({
+      user: { id: user._id.toString(), email: user.email, role: user.role, status: user.status },
+      token,
+      expiresInSec,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.patch(
+  '/users/:id',
+  ownerOnly,
+  validateBody(updateUserSchema),
+  async (req, res, next) => {
+    try {
+      const user = await updateUser(req.org, req.params.id, req.body, req.user);
+      res.json({ user: { id: user._id.toString(), role: user.role, status: user.status } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);

@@ -204,3 +204,113 @@ describe('incidents', () => {
     expect(JSON.stringify(res.body)).not.toContain('authorId');
   });
 });
+
+describe('people', () => {
+  const invite = (over = {}) =>
+    auth(request(app).post('/api/v1/admin/users/invite')).send({
+      email: 'colleague@acme.com',
+      role: 'admin',
+      ...over,
+    });
+
+  it('invites a colleague and lets them set a password', async () => {
+    const invited = await invite();
+    expect(invited.status).toBe(201);
+    expect(invited.body.user.status).toBe('invited');
+
+    const accepted = await request(app).post('/api/v1/auth/accept-invite').send({
+      token: invited.body.token,
+      password: 'another-perfectly-fine-passphrase',
+    });
+
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.user.role).toBe('admin');
+    expect(accepted.body.accessToken).toBeTruthy();
+  });
+
+  it('burns the invitation on use', async () => {
+    // An invitation is a credential: whoever holds it becomes an
+    // administrator of a status page. Once is once.
+    const { body } = await invite();
+    const payload = { token: body.token, password: 'another-perfectly-fine-passphrase' };
+
+    await request(app).post('/api/v1/auth/accept-invite').send(payload);
+    const second = await request(app).post('/api/v1/auth/accept-invite').send(payload);
+
+    expect(second.status).toBe(401);
+    expect(second.body.error.code).toBe('invalid_invite');
+  });
+
+  it('refuses a token nobody issued', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/accept-invite')
+      .send({ token: 'not-a-real-invitation', password: 'a-perfectly-fine-passphrase' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('will not let an admin invite anyone', async () => {
+    // The split that justifies having two roles: declaring an incident
+    // at 3am and deciding who else holds the keys are different kinds of
+    // authority.
+    const invited = await invite();
+    const accepted = await request(app).post('/api/v1/auth/accept-invite').send({
+      token: invited.body.token,
+      password: 'another-perfectly-fine-passphrase',
+    });
+
+    const attempt = await request(app)
+      .post('/api/v1/admin/users/invite')
+      .set('Authorization', `Bearer ${accepted.body.accessToken}`)
+      .send({ email: 'someone@else.com', role: 'owner' });
+
+    expect(attempt.status).toBe(403);
+    expect(attempt.body.error.code).toBe('insufficient_role');
+  });
+
+  it('lets an admin still do the job they were hired for', async () => {
+    const invited = await invite();
+    const accepted = await request(app).post('/api/v1/auth/accept-invite').send({
+      token: invited.body.token,
+      password: 'another-perfectly-fine-passphrase',
+    });
+
+    const declared = await request(app)
+      .post('/api/v1/admin/incidents')
+      .set('Authorization', `Bearer ${accepted.body.accessToken}`)
+      .send({ title: 'Something broke', message: 'Looking into it.' });
+
+    expect(declared.status).toBe(201);
+  });
+
+  it('disabling someone ends their sessions immediately', async () => {
+    const invited = await invite();
+    const accepted = await request(app).post('/api/v1/auth/accept-invite').send({
+      token: invited.body.token,
+      password: 'another-perfectly-fine-passphrase',
+    });
+
+    await auth(request(app).patch(`/api/v1/admin/users/${invited.body.user.id}`)).send({
+      status: 'disabled',
+    });
+
+    // Not in fifteen minutes - now. The signature is still perfectly
+    // good and the token is refused anyway.
+    const after = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${accepted.body.accessToken}`);
+
+    expect(after.status).toBe(401);
+  });
+
+  it('refuses to let an owner change their own account', async () => {
+    // There may be no other owner to undo it.
+    const me = await auth(request(app).get('/api/v1/auth/me'));
+    const res = await auth(request(app).patch(`/api/v1/admin/users/${me.body.user.id}`)).send({
+      status: 'disabled',
+    });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('cannot_modify_self');
+  });
+});

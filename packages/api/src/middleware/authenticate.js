@@ -70,3 +70,24 @@ export async function requireUser(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Role gate.
+ *
+ * Owners manage people; admins manage the service. The split exists so
+ * that handing someone the ability to declare an incident at 3am does
+ * not also hand them the ability to lock everyone else out.
+ *
+ * Checked against the token claim rather than the loaded document, so it
+ * works on routes that never touch Mongo. A demotion therefore takes up
+ * to fifteen minutes to be felt - or immediately, if the owner bumps
+ * tokenVersion, which is what disabling an account does.
+ */
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.auth?.role)) {
+      return next(ApiError.forbidden('insufficient_role', `Requires one of: ${roles.join(', ')}`));
+    }
+    next();
+  };
+}

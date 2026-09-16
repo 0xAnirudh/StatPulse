@@ -37,3 +37,20 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().min(1, 'Email is required'),
   password: z.string().min(1, 'Password is required'),
 });
+
+export const inviteSchema = z.object({
+  email,
+  role: z.enum(['owner', 'admin']).default('admin'),
+});
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(1, 'An invitation token is required'),
+  password,
+});
+
+export const updateUserSchema = z
+  .object({
+    role: z.enum(['owner', 'admin']).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'Provide at least one field to update' });

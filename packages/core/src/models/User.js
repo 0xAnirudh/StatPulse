@@ -43,6 +43,9 @@ const userSchema = new mongoose.Schema(
     tokenVersion: { type: Number, default: 0 },
 
     lastLoginAt: Date,
+
+    /** Who let them in. Useful the day somebody asks how an account exists. */
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   {
     timestamps: true,

@@ -135,7 +135,7 @@ packages/shared/   pure domain logic - status aggregation, hysteresis, uptime ma
 packages/core/     config, logging, mongo, redis, lua, models, the SSRF guard
 packages/api/      express: public reads, auth, admin writes
 packages/jobs/     bullmq: the checker, and the metrics flusher
-tests/             158 tests
+tests/             the suite
 ```
 
 Three processes, deployed separately. Checking two hundred URLs with a

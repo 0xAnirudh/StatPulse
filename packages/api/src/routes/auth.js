@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { config, isProduction, ApiError } from '@statpulse/core';
 import { User } from '@statpulse/core/models';
 import { validateBody } from '../middleware/validate.js';
-import { registerSchema, loginSchema } from '../schemas/auth.js';
+import { registerSchema, loginSchema, acceptInviteSchema } from '../schemas/auth.js';
 import { register, authenticate as checkCredentials } from '../services/auth.js';
+import { acceptInvite } from '../services/invite.js';
 import { authenticate, requireUser } from '../middleware/authenticate.js';
 import { publicTenant, tokenTenant } from '../middleware/tenant.js';
 import { loginRateLimit, rateLimit, BUCKETS } from '../middleware/rateLimit.js';
@@ -106,6 +107,28 @@ authRouter.post(
  * destroyed, because two parties holding one token means one of them
  * stole it and there is no way to tell which is which.
  */
+/**
+ * Redeem an invitation.
+ *
+ * Public, because the invitee has no account to authenticate with yet -
+ * the token is the credential. Rate limited by address, since it is a
+ * public endpoint that checks a secret.
+ */
+authRouter.post(
+  '/accept-invite',
+  validateBody(acceptInviteSchema),
+  rateLimit(BUCKETS.AUTH_IP),
+  async (req, res, next) => {
+    try {
+      const user = await acceptInvite(req.body);
+      const accessToken = await issueSession(req, res, user);
+      res.json({ accessToken, user: user.toPrivate() });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 authRouter.post('/refresh', async (req, res, next) => {
   try {
     assertSameOrigin(req);
