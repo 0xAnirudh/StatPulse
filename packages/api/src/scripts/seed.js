@@ -86,7 +86,7 @@ async function seed() {
   const org = await Organization.findOneAndUpdate(
     { slug: 'default' },
     { $setOnInsert: { name: 'StatPulse', slug: 'default', hosts: [] } },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   );
 
   const existing = await User.findOne({ orgId: org._id, email: ADMIN_EMAIL });
@@ -100,14 +100,23 @@ async function seed() {
       role: 'owner',
       status: 'active',
     });
-    log.info('admin created', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    /**
+     * console, not the logger.
+     *
+     * The logger redacts anything called `password`, which is exactly
+     * right everywhere else and exactly wrong here - the whole purpose
+     * of this line is to tell a developer how to log in, and the first
+     * run printed "[redacted]" at them.
+     */
+    log.info('admin created', { email: ADMIN_EMAIL });
+    console.log(`\n  sign in with  ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}\n`);
   }
 
   for (const component of DEMO_COMPONENTS) {
     await Component.findOneAndUpdate(
       { orgId: org._id, slug: component.slug },
       { $set: { ...component, orgId: org._id } },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
   }
 

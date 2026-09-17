@@ -89,6 +89,6 @@ export async function defaultOrganization() {
   return Organization.findOneAndUpdate(
     { slug: 'default' },
     { $setOnInsert: { name: 'StatPulse', slug: 'default', hosts: [] } },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   );
 }

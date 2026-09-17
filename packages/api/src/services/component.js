@@ -71,7 +71,7 @@ export async function updateComponent(org, slug, input) {
   const component = await Component.findOneAndUpdate(
     { orgId: org._id, slug, deletedAt: null },
     { $set: input },
-    { new: true, runValidators: true },
+    { returnDocument: 'after', runValidators: true },
   );
 
   // 404 rather than 403 for a component in another org. Distinguishing

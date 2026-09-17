@@ -33,6 +33,24 @@
  */
 process.env.STATUS_RATE_LIMIT = process.env.STATUS_RATE_LIMIT ?? '1000000';
 
+/**
+ * Run against an isolated Redis database, the way the test suite does.
+ *
+ * This script writes a synthetic fifty-component payload and a fake
+ * organization, both with an hour-long TTL. Pointed at the development
+ * database - which is what REDIS_URL means by default - it leaves that
+ * sitting in front of the real seeded data until it expires, and the dev
+ * status page shows fifty services called "service-0" that do not exist.
+ *
+ * That is exactly what happened the first time this was run.
+ */
+const LOAD_REDIS_DB = 14;
+{
+  const url = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
+  url.pathname = `/${LOAD_REDIS_DB}`;
+  process.env.REDIS_URL = url.toString();
+}
+
 const [autocannonMod, appMod, redisMod, keys, statusMod] = await Promise.all([
   import('autocannon'),
   import('../../packages/api/src/app.js'),
@@ -171,6 +189,10 @@ async function main() {
     console.log(`PASS  p99 ${result.latency.p99}ms at ${result.requests.average.toFixed(0)} req/s`);
   }
 
+  // Leave nothing behind. The isolated database makes this belt and
+  // braces, but a load script that grows a keyspace every run is a
+  // slow-motion problem.
+  await redis.flushdb();
   server.close();
   await disconnectRedis();
 }
