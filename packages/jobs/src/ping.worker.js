@@ -119,11 +119,27 @@ export async function runCheck({ componentId }) {
     }),
   );
 
+  /**
+   * Say why, not just what.
+   *
+   * There are two entirely different ways to fail and the log has to
+   * tell them apart. A transport failure carries an errorClass and no
+   * status code; a service answering 503 when 200 was expected carries a
+   * status code and no errorClass - and logging only the errorClass made
+   * that second case read as "went DOWN, reason: null", which is the
+   * least useful sentence a status page could write about an outage.
+   *
+   * Both fields, always, plus how long it took.
+   */
   log.info('component changed state', {
     component: component.slug,
     from: component.status,
     to: next.status,
-    errorClass: result.errorClass,
+    reason:
+      result.errorClass ??
+      (result.statusCode ? `unexpected status ${result.statusCode}` : 'unknown'),
+    statusCode: result.statusCode ?? null,
+    responseMs: result.responseMs ?? null,
   });
 
   return { status: next.status, changed: true, from: component.status };

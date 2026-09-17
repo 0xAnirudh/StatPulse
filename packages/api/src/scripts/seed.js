@@ -55,7 +55,11 @@ const DEMO_COMPONENTS = [
     slug: 'webhook-delivery',
     group: 'Support',
     type: 'Webhook',
-    targetUrl: 'https://httpbin.org/status/200',
+    // Not httpbin: it is convenient but genuinely unreliable, and it
+    // timed out on its first run here - which makes a demo component
+    // that is supposed to be healthy flap for reasons that have nothing
+    // to do with this system.
+    targetUrl: 'https://www.cloudflare.com/cdn-cgi/trace',
     degradedAboveMs: 2_500,
     displayOrder: 4,
   },
