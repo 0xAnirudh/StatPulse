@@ -49,12 +49,26 @@ function refreshCookieOptions(maxAgeSec) {
 }
 
 function assertSameOrigin(req) {
-  const allowed = config.WEB_ORIGIN.split(',').filter(Boolean);
   const origin = req.get('origin');
+
   // No Origin header at all is a same-origin navigation or a non-browser
   // client; browsers always send one on a cross-site POST, which is the
   // case being defended against.
   if (!origin) return;
+
+  /**
+   * The page's own origin always counts.
+   *
+   * The API serves the frontend, so in production the browser posts here
+   * from http://<this host> - and Chrome sends an Origin header even on
+   * a same-origin POST. Checking only against WEB_ORIGIN meant the
+   * refresh endpoint rejected its own page with a 403, which broke
+   * staying signed in across a reload. Same-origin is, by definition,
+   * not the cross-site request forgery this guard exists for.
+   */
+  const own = `${req.protocol}://${req.get('host')}`;
+  const allowed = [own, ...config.WEB_ORIGIN.split(',').filter(Boolean)];
+
   if (!allowed.includes(origin)) {
     throw ApiError.forbidden('bad_origin', 'Request origin is not allowed');
   }
