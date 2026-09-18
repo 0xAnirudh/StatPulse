@@ -16,6 +16,11 @@ npm run seed
 npm run dev               # api on :4000, workers alongside
 ```
 
+Then open **http://localhost:4000** — the status page is served by the
+API itself, one file with no build step and no CDN. A page hosted
+somewhere that can fail independently of this process is one more thing
+that can be down at the moment it is needed.
+
 ```bash
 curl localhost:4000/api/v1/status
 ```
@@ -133,7 +138,7 @@ incident.
 ```
 packages/shared/   pure domain logic - status aggregation, hysteresis, uptime maths
 packages/core/     config, logging, mongo, redis, lua, models, the SSRF guard
-packages/api/      express: public reads, auth, admin writes
+packages/api/      express: public reads, auth, admin writes, the page itself
 packages/jobs/     bullmq: the checker, and the metrics flusher
 tests/             the suite
 ```

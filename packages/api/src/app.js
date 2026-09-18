@@ -1,3 +1,5 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { log, ApiError, config } from '@statpulse/core';
@@ -61,6 +63,24 @@ export function createApp() {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+
+  /**
+   * The status page itself.
+   *
+   * Served by the API rather than by a separate frontend, and that is
+   * the point: a status page hosted somewhere that can fail
+   * independently of this process is one more thing that can be down
+   * when it is needed. One file, no build step, no CDN - it renders from
+   * a single fetch of the endpoint below.
+   */
+  app.use(
+    express.static(join(dirname(fileURLToPath(import.meta.url)), 'public'), {
+      // The page is tiny and changes rarely; the data it fetches is what
+      // needs to be fresh, and that has its own cache headers.
+      maxAge: '5m',
+      etag: true,
+    }),
+  );
 
   app.use('/health', healthRouter);
   app.use('/metrics', metricsRouter);
