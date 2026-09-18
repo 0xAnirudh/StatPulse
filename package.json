@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,jobs -c cyan,yellow \"npm:dev:api\" \"npm:dev:jobs\"",
+    "dev": "concurrently -n api,jobs,web -c cyan,yellow,magenta \"npm:dev:api\" \"npm:dev:jobs\" \"npm:dev:web\"",
     "dev:api": "npm run dev --workspace=@statpulse/api",
     "dev:jobs": "npm run dev --workspace=@statpulse/jobs",
     "seed": "npm run seed --workspace=@statpulse/api",
@@ -17,7 +17,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "loadtest": "node tests/load/status.js"
+    "loadtest": "node tests/load/status.js",
+    "dev:web": "npm run dev --workspace=@statpulse/web",
+    "build": "npm run build --workspace=@statpulse/web"
   },
   "engines": {
     "node": ">=20"

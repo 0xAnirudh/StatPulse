@@ -18,6 +18,8 @@ import { adminRouter } from './routes/admin.js';
  * the real app in-process without binding a port, which every
  * integration test depends on.
  */
+const WEB_DIST = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
+
 export function createApp() {
   const app = express();
 
@@ -65,20 +67,26 @@ export function createApp() {
   });
 
   /**
-   * The status page itself.
+   * The frontend, served by the API itself.
    *
-   * Served by the API rather than by a separate frontend, and that is
-   * the point: a status page hosted somewhere that can fail
-   * independently of this process is one more thing that can be down
-   * when it is needed. One file, no build step, no CDN - it renders from
-   * a single fetch of the endpoint below.
+   * A status page hosted somewhere that can fail independently of this
+   * process is one more thing that can be down at the moment it is
+   * needed. Same origin also means the refresh cookie behaves in
+   * production exactly as it does in development, with no SameSite=None
+   * and no CSRF token to get wrong.
+   *
+   * In development Vite serves this instead and proxies /api here, so
+   * this path only matters once `npm run build` has run.
    */
   app.use(
-    express.static(join(dirname(fileURLToPath(import.meta.url)), 'public'), {
-      // The page is tiny and changes rarely; the data it fetches is what
-      // needs to be fresh, and that has its own cache headers.
-      maxAge: '5m',
-      etag: true,
+    express.static(WEB_DIST, {
+      // Hashed asset filenames can be cached hard; index.html must not
+      // be, or a deploy ships new assets that nothing asks for.
+      maxAge: '1y',
+      index: false,
+      setHeaders(res, path) {
+        if (path.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+      },
     }),
   );
 
@@ -99,6 +107,21 @@ export function createApp() {
   app.use('/api/v1/admin', adminRouter);
 
   app.use('/api/status', (req, res) => res.redirect(301, '/api/v1/status'));
+
+  /**
+   * Client-side routes fall through to the app; API routes do not.
+   *
+   * /admin/components exists only in the browser's router, so a hard
+   * refresh on it has to be answered with index.html rather than a 404.
+   * But an unknown /api path must stay a JSON 404 - handing an HTML
+   * document to a fetch() that expected JSON produces a parse error
+   * three layers away from the actual mistake.
+   */
+  app.get(/^(?!\/(?:api|health|metrics)\b).*/, (req, res, next) => {
+    res.sendFile(join(WEB_DIST, 'index.html'), (err) => {
+      if (err) next();
+    });
+  });
 
   app.use((req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: `No route for ${req.path}` } });

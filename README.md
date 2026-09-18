@@ -12,18 +12,45 @@ marked _stale_ rather than to a stack trace.
 npm install
 docker compose up -d      # mongo + redis
 cp .env.example .env
-npm run seed
-npm run dev               # api on :4000, workers alongside
+npm run seed              # an admin and five demo components
+npm run build             # build the frontend
+npm run dev               # api + workers + vite
 ```
 
-Then open **http://localhost:4000** — the status page is served by the
-API itself, one file with no build step and no CDN. A page hosted
-somewhere that can fail independently of this process is one more thing
-that can be down at the moment it is needed.
+Open **http://localhost:4000** for the status page, or
+**http://localhost:5174** for the frontend with hot reload. Sign in at
+`/signin` with the credentials the seed prints.
 
 ```bash
 curl localhost:4000/api/v1/status
 ```
+
+---
+
+## The product
+
+**Public** — the status page, per-component detail with ninety days of
+uptime bars, and the incident history with full timelines.
+
+**Admin** — sign in, add and edit components, pause them, trigger a
+check on demand, declare incidents and post timeline updates, invite
+colleagues, and revoke your own sessions.
+
+The frontend is served by the API itself. A status page hosted somewhere
+that can fail independently of the thing it reports on is one more
+thing that can be down at the moment it is needed — and same-origin
+means the refresh cookie behaves in production exactly as it does in
+development, with no `SameSite=None` and no CSRF token to get wrong.
+
+Two details the UI is deliberate about:
+
+- **An SSRF rejection lands on the field that caused it.** Typing
+  `http://169.254.169.254/latest/meta-data/` as a target gives you
+  _"169.254.169.254 is not a permitted address"_ under the URL input,
+  not a generic banner.
+- **Uptime reads "no data" when nothing has been measured.** A component
+  added a minute ago has unknown uptime, and printing 100% for it is the
+  one lie a status page cannot afford.
 
 ---
 
@@ -138,7 +165,8 @@ incident.
 ```
 packages/shared/   pure domain logic - status aggregation, hysteresis, uptime maths
 packages/core/     config, logging, mongo, redis, lua, models, the SSRF guard
-packages/api/      express: public reads, auth, admin writes, the page itself
+packages/api/      express: public reads, auth, admin writes
+packages/web/      react: the status page and the admin dashboard
 packages/jobs/     bullmq: the checker, and the metrics flusher
 tests/             the suite
 ```
